@@ -1,24 +1,25 @@
 # Zapier-Based Social Media Content Bot (No-Code)
 
-Full no-code replacement for the Python bot. One Zap turns every new video in
-Google Drive into review-ready drafts for Instagram, X, TikTok, and YouTube.
+Full no-code content pipeline. One Zap turns every new video in Google Drive
+into review-ready drafts for Instagram, X, TikTok, and YouTube — with
+**OpusClip auto-cutting the short-form clips**.
 
 ---
 
-## What Zapier can and can't do
+## The full stack
 
-| Capability | Zapier? | Notes |
-|------------|---------|-------|
-| Watch Drive for new videos | ✅ | Native Google Drive trigger |
-| Transcribe video audio | ✅ | OpenAI Whisper action (or Zapier's built-in transcription) |
-| Generate captions/hooks/hashtags with AI | ✅ | Anthropic (Claude) or ChatGPT action |
-| Write drafts to Google Sheets | ✅ | Native action |
-| Notify the team (Slack/email) | ✅ | Native actions |
-| **Cut highlight clips from video** | ❌ | Zapier can't edit video. Claude still outputs *timestamps*, your editor cuts in CapCut/Descript — or add the OpusClip integration (see bottom) |
+| Capability | Tool | Notes |
+|------------|------|-------|
+| Watch Drive for new videos | Zapier | Native Google Drive trigger |
+| Transcribe video audio | Zapier | OpenAI Whisper action (or Zapier's built-in transcription) |
+| Generate captions/hooks/hashtags with AI | Zapier → Claude | Anthropic action |
+| **Cut highlight clips with captions** | **OpusClip** | Official Zapier integration — auto-cuts viral-style shorts with burned-in captions and a virality score |
+| Write drafts to Google Sheets | Zapier | Native action |
+| Notify the team (Slack/email) | Zapier | Native actions |
 
 ---
 
-## The Zap (7 steps)
+## Zap 1 — Copy generation (7 steps)
 
 ### Step 1 — Trigger: Google Drive → "New File in Folder"
 - Connect your Google account
@@ -49,8 +50,29 @@ Google Drive into review-ready drafts for Instagram, X, TikTok, and YouTube.
 - Map each split section to a row: Platform, Format, Hook, Caption, Hashtags,
   Clip Timestamps, Status = `DRAFT`
 
-### Step 7 — Slack or Email notification
-- "🎬 New content drafts ready for review: {filename} — [open the sheet]"
+### Step 7 — OpusClip → "Create Project"
+- Pass the Drive file's **shareable link** from Step 1
+- OpusClip auto-detects the best moments, cuts vertical clips with captions,
+  and scores each clip for virality
+- Set clip length presets: <60s (Shorts/Reels) and <90s (TikTok)
+
+### Step 8 — Slack or Email notification
+- "🎬 New content drafts ready for review: {filename} — [open the sheet] —
+  clips processing in OpusClip"
+
+---
+
+## Zap 2 — Log finished clips (3 steps)
+
+OpusClip takes a few minutes to render, so a second small Zap logs results:
+
+1. **Trigger: OpusClip → "Project Completed"**
+2. **Google Sheets → "Create Spreadsheet Row(s)"** — one row per clip with
+   the clip link, duration, and virality score, Status = `CLIP READY`
+3. **Slack/Email** — "✂️ {n} clips ready for {video title}"
+
+Your team then pairs each OpusClip clip with the matching Claude-written
+caption from the Drafts sheet, approves, and posts (or pushes to Buffer/Later).
 
 ---
 
@@ -92,11 +114,10 @@ its own line, in this exact order:
 Output ONLY the content sections separated by |||, no preamble.
 ```
 
-> Why "quote to search for" instead of timestamps? Whisper-in-Zapier returns
-> plain text without timestamps, so Claude flags the exact sentence — your
-> editor searches for it in CapCut/Descript (both have transcript search) and
-> cuts there. If you use AssemblyAI instead, you get timestamps and can map
-> them directly.
+> The "CLIP: [quote]" lines are a quality-check: compare Claude's picks against
+> what OpusClip auto-selected. When they agree, that clip is almost always your
+> strongest post. When OpusClip misses a moment Claude flagged, cut that one
+> manually in OpusClip's editor (search the transcript for the quote).
 
 ---
 
@@ -114,23 +135,11 @@ Output ONLY the content sections separated by |||, no preamble.
 
 ## Plan & cost notes
 
-- This Zap uses **7 steps** → needs a **Zapier Professional plan** (multi-step Zaps + premium apps)
-- Each video ≈ 1 Zap run + 1 Claude API call (a few cents) + 1 Whisper call
+- Multi-step Zaps need a **Zapier Professional plan**
+- Each video ≈ 2 Zap runs + 1 Claude API call (a few cents) + 1 Whisper call
+  + OpusClip processing minutes (check your OpusClip plan's monthly minutes
+  against your video volume — webinars eat minutes fast)
 - A 1-hour webinar transcript ≈ ~9k words — comfortably within Claude's context
-
----
-
-## Optional upgrade: auto-clipping with OpusClip
-
-If you want actual clips cut without an editor:
-
-1. Add a step: **OpusClip → "Create Project"** (official Zapier integration),
-   passing the Drive video link
-2. OpusClip auto-cuts viral-style shorts with captions and a virality score
-3. Add its webhook back into a second Zap to log finished clips in your sheet
-
-OpusClip + this Zap = fully hands-off: video in Drive → transcripts → AI copy
-→ cut clips → everything in one review sheet.
 
 ---
 
@@ -139,6 +148,12 @@ OpusClip + this Zap = fully hands-off: video in Drive → transcripts → AI cop
 - [ ] Create the Google Sheet with the columns above, tab named `Drafts`
 - [ ] Get an Anthropic API key (console.anthropic.com)
 - [ ] Get an OpenAI API key (for Whisper) — or use Zapier's built-in transcription
-- [ ] Build the 7-step Zap as described
+- [ ] Connect your OpusClip account to Zapier
+- [ ] Build Zap 1 (copy generation + OpusClip kickoff)
+- [ ] Build Zap 2 (log finished clips)
 - [ ] Test with one short video first (under 25 MB)
-- [ ] Turn on the Zap and drop videos into the folder
+- [ ] Turn on both Zaps and drop videos into the folder
+
+**End-to-end flow:** video in Drive → transcript → Claude writes all copy →
+OpusClip cuts captioned clips → everything lands in one review sheet → your
+team approves and posts.
