@@ -1,181 +1,266 @@
-# Zapier-Based Social Media Content Bot (No-Code)
+# Freedom Team Trading — Social Media Bot Setup (Zapier)
 
-Full no-code content pipeline. A new row in your Fathom tracking sheet (or a
-new Fathom recording) triggers everything: transcript → AI copy → clip cutting
-→ draft review sheet, with **no manual transcription step needed**.
-
----
-
-## The full stack
-
-| Capability | Tool | Notes |
-|------------|------|-------|
-| Detect new content to process | Zapier | Google Sheets trigger (new row with Fathom link) |
-| Fetch transcript | Fathom → Zapier | Fathom's Zapier action returns the full transcript — no Whisper needed |
-| Generate captions/hooks/hashtags with AI | Zapier → Claude | Anthropic action (claude-sonnet-4-6) |
-| Cut highlight clips with captions | OpusClip | Official Zapier integration — auto-cuts vertical clips with burned-in captions and a virality score |
-| Write drafts to Google Sheets | Zapier | Writes to a separate Drafts tab |
-| Notify the team (Slack/email) | Zapier | Native actions |
+**How it works:** You paste a Fathom recording link into a Google Sheet →
+the Zap picks it up, grabs the transcript from Fathom, sends it to Claude for
+platform-specific copy, pushes the video to OpusClip for clip cutting, and
+logs everything in a Drafts tab for your team to review.
 
 ---
 
-## Trigger option A — Google Sheet (recommended if you manage videos in a sheet)
+## Before you start — accounts you need
 
-**Your sheet needs these columns:**
-
-| Column | What you fill in | Used by |
-|--------|-----------------|---------|
-| Fathom Recording URL | Paste the Fathom share link | Zapier fetches transcript + video URL |
-| Video Title | e.g. "June 10 Live Session" | Claude prompt, Sheet labels |
-| Video Type | live_trading / webinar / testimonial / course | Tailors the Claude prompt |
-| Status | Leave blank — Zapier fills this | Bot sets to `PROCESSING` then `DONE` |
-
-**Trigger setup in Zapier:**
-- App: **Google Sheets**
-- Event: **New Spreadsheet Row** (or "New or Updated Row" filtered on Status = blank)
-- Sheet: your tracking sheet, the tab where you paste Fathom links
+| Account | What it's for | Where to get it |
+|---------|--------------|-----------------|
+| Zapier (Professional plan) | Runs the automation | zapier.com |
+| Anthropic | Claude writes the captions | console.anthropic.com → API Keys |
+| Fathom | Already have this ✅ | — |
+| OpusClip | Cuts the short-form clips | opus.pro |
+| Google account | Sheets + Drive | Already have this ✅ |
 
 ---
 
-## Trigger option B — Fathom directly (simplest, fully automatic)
+## Step 1 — Set up your Google Sheets
 
-Skip the tracking sheet entirely. Fathom fires the Zap the moment a recording
-is ready.
+You need **two tabs** in one Google Sheet:
 
-- App: **Fathom**
-- Event: **New Recording**
-- Zapier gets the transcript AND the video download URL automatically — no
-  extra "fetch" step needed
+### Tab 1: "Videos" (where you paste links)
 
-Downside: you lose the manual control of the tracking sheet (every Fathom
-recording triggers the bot, including internal calls you may not want posted).
-A Zapier **Filter** step (only continue if meeting title contains "trading" /
-"webinar" / "session") solves this.
+Create these columns exactly:
 
----
+| A | B | C | D |
+|---|---|---|---|
+| Fathom URL | Video Title | Video Type | Status |
 
-## Zap 1 — Copy generation (6 steps)
+- **Fathom URL** — paste the Fathom share link here
+- **Video Title** — what you want it called (e.g. "June 10 Live Session")
+- **Video Type** — type one of: `live_trading` / `webinar` / `testimonial` / `course`
+- **Status** — leave blank; the Zap fills this in automatically
 
-### Step 1 — Trigger
-*(Choose Option A or B above)*
+### Tab 2: "Drafts" (where content lands)
 
-### Step 2 — Fathom: "Find Recording" *(Option A only — skip for Option B)*
-- Search by: **Recording URL** (from the sheet column)
-- This returns the full transcript text and the direct video download URL
-- Mark the tracking sheet row Status = `PROCESSING` here with a Sheets update step
+Create these columns:
 
-### Step 3 — Anthropic (Claude): "Send Message"
-- Model: `claude-sonnet-4-6`
-- Paste the prompt template below, mapping in:
-  - Transcript → from Fathom (Step 2 or Step 1 depending on option)
-  - Video Title → from your sheet / Fathom meeting title
-  - Video Type → from your sheet column (or let Claude detect it)
+| A | B | C | D | E | F | G |
+|---|---|---|---|---|---|---|
+| Date | Video Title | Platform | Format | Content | Hashtags | Status |
 
-### Step 4 — Formatter: "Text → Split Text"
-- Split on `|||`
-- This turns Claude's response into 7 separate fields (one per platform format)
-
-### Step 5 — Google Sheets: "Create Multiple Spreadsheet Rows" (Drafts tab)
-- Create one row per platform format with caption, hook, hashtags, clip moment
-- Status = `DRAFT`
-
-### Step 6 — OpusClip: "Create Project"
-- Video URL: the **direct download URL** from Fathom (NOT the share page link)
-- Clip length: set presets for <60s and <90s to cover Shorts, Reels, and TikTok
-- ⚠️ This only works if Fathom returns a direct `.mp4` URL in Zapier. Test this
-  first with one recording — if Fathom's URL is a webpage, see the note below.
-
-> **OpusClip + Fathom URL note:** Fathom's Zapier integration returns a
-> `video_url` field that is a direct downloadable link (not the browser share
-> page). OpusClip accepts this. If your test shows it's redirecting to a login
-> page, the workaround is to download the Fathom video to Google Drive first
-> (Fathom has a native Drive export), then pass the Drive URL to OpusClip — one
-> extra step but it's reliable.
-
-### Step 7 — Slack/Email + update tracking sheet
-- Message: "🎬 Drafts ready for *{Video Title}* — [open sheet]"
-- Update the tracking sheet row Status → `DONE`
+Leave this tab empty — Zapier fills it.
 
 ---
 
-## Zap 2 — Log finished clips (3 steps)
+## Step 2 — Connect Fathom to Zapier
 
-OpusClip takes a few minutes to render, so a second Zap logs results:
-
-1. **Trigger: OpusClip → "Project Completed"**
-2. **Google Sheets → "Create Spreadsheet Row(s)"** — one row per clip with
-   clip link, duration, and virality score, Status = `CLIP READY`
-3. **Slack/Email** — "✂️ {n} clips ready for *{video title}*"
+1. In Fathom, go to **Settings → Integrations → Zapier**
+2. Click **Connect** and copy your Fathom API key
+3. In Zapier, when you add a Fathom step, paste that key to authenticate
 
 ---
 
-## The Claude prompt (paste into Step 3)
+## Step 3 — Build Zap 1 (Copy + Clips)
+
+In Zapier, click **Create Zap**.
+
+---
+
+### 🔵 Step 1 of Zap — Trigger: Google Sheets "New Spreadsheet Row"
+
+- **App:** Google Sheets
+- **Event:** New Spreadsheet Row
+- **Account:** connect your Google account
+- **Spreadsheet:** select your sheet
+- **Worksheet:** Videos
+- **Test:** add a row in the sheet with a real Fathom URL to test with
+
+---
+
+### 🟡 Step 2 of Zap — Filter (only run when Status is blank)
+
+- **App:** Filter by Zapier
+- **Condition:** `Status` **Does not exist** (or "is empty")
+- This stops the Zap from re-running on rows it already processed
+
+---
+
+### 🟠 Step 3 of Zap — Fathom: "Find Recording"
+
+- **App:** Fathom
+- **Event:** Find Recording
+- **Recording URL:** select `Fathom URL` from Step 1
+- **What this gives you:** the full transcript text + the direct video download URL
+
+---
+
+### 🟣 Step 4 of Zap — Anthropic: "Send Message"
+
+- **App:** Anthropic
+- **Event:** Send Message
+- **Model:** `claude-sonnet-4-6`
+- **Max tokens:** `4000`
+- **Message (user):** paste the prompt below, then use Zapier's field picker to
+  insert the dynamic values where marked
 
 ```
 You are the social media strategist for Freedom Team Trading, a forex and
 futures trading education brand. Tone: energetic, educational, empowering.
 Never make guaranteed-profit claims.
 
-VIDEO TITLE: {{Video Title}}
-VIDEO TYPE: {{Video Type}}
+VIDEO TITLE: [insert Video Title from Step 1]
+VIDEO TYPE: [insert Video Type from Step 1]
 TRANSCRIPT:
-{{Fathom Transcript}}
+[insert Transcript from Step 3 - Fathom]
 
-Generate the following, with each section separated by exactly "|||" on
-its own line, in this exact order:
+Generate the following. Separate each section with ||| on its own line,
+in this exact order. Output ONLY the sections, no intro text.
 
-1. INSTAGRAM REEL — hook (max 10 words), caption (with emojis + CTA), 30
-   hashtags, and the best 30–60 second clip moment as:
-   CLIP: "[exact quote from transcript to find]" — why it works
-|||
-2. INSTAGRAM CAROUSEL — 5 slide texts + caption + hashtags
-|||
-3. X TWEET — single tweet under 280 characters with a strong hook
-|||
-4. X THREAD — 5 tweets, numbered 1/ through 5/, ending with a CTA
-|||
-5. TIKTOK — spoken hook line, caption, 20 hashtags, best clip moment
-   (same CLIP format), and 3 b-roll ideas
-|||
-6. YOUTUBE SHORT — title under 60 chars + best clip moment (CLIP format)
-|||
-7. YOUTUBE LONG-FORM — SEO title under 70 chars, full description with
-   chapter timestamps, 8 tags, and thumbnail text (max 6 words)
+1. INSTAGRAM REEL
+Hook (max 10 words for the first 3 seconds of the video)
+Caption (with emojis, line breaks, and a CTA, max 2200 chars)
+30 hashtags
+Best clip moment: CLIP: "[exact quote from transcript]" — why it works
 
-Output ONLY the 7 sections separated by |||. No preamble.
+|||
+
+2. INSTAGRAM CAROUSEL
+Slide 1 headline
+Slide 2 text
+Slide 3 text
+Slide 4 text
+Slide 5 CTA
+Caption for the post
+30 hashtags
+
+|||
+
+3. X (TWITTER) TWEET
+Single tweet under 280 characters with a scroll-stopping hook
+
+|||
+
+4. X (TWITTER) THREAD
+1/ Opening tweet that creates curiosity
+2/ Key insight
+3/ Key insight
+4/ Key insight
+5/ Closing tweet with CTA and link placeholder
+
+|||
+
+5. TIKTOK
+Spoken hook line (first 3 seconds, creates curiosity or shock)
+Caption with emojis and CTA
+20 hashtags
+Best clip moment: CLIP: "[exact quote from transcript]" — why it works
+3 b-roll ideas
+
+|||
+
+6. YOUTUBE SHORT
+Title (under 60 characters)
+Best clip moment: CLIP: "[exact quote from transcript]" — why it works
+
+|||
+
+7. YOUTUBE LONG-FORM
+SEO title (under 70 characters)
+Full description (include chapter timestamps, 2 link placeholders, and keywords)
+8 tags separated by commas
+Thumbnail text (max 6 bold words)
 ```
-
-> **CLIP quotes tip:** Claude picks exact phrases from the Fathom transcript.
-> Compare these to what OpusClip auto-selects. When they agree, that clip is
-> almost always your strongest post. When they differ, both are worth testing.
 
 ---
 
-## Drafts tab — Google Sheet columns
+### 🔵 Step 5 of Zap — Formatter: "Text → Split Text"
 
-| Column | Source |
-|--------|--------|
-| Date | Zap run timestamp |
-| Video Title | From tracking sheet / Fathom meeting title |
-| Video Type | From tracking sheet / Claude detection |
-| Platform | Static per row (Instagram, X, TikTok, YouTube) |
-| Format | Reel / Carousel / Tweet / Thread / TikTok / Short / Long-form |
-| Content | Split output from Step 4 |
-| Status | `DRAFT` → team changes to `APPROVED` or `SKIP` |
+- **App:** Formatter by Zapier
+- **Event:** Text → Split Text
+- **Input:** select the Claude response text from Step 4
+- **Separator:** `|||`
+- **Segment Index:** All (this gives you 7 separate fields: Output 1 through Output 7)
+
+---
+
+### 🟢 Step 6 of Zap — Google Sheets: "Create Multiple Spreadsheet Rows"
+
+- **App:** Google Sheets
+- **Event:** Create Spreadsheet Row *(repeat this step 7 times, once per platform — or use "Create Multiple Rows" if your Zapier plan supports it)*
+- **Spreadsheet:** your sheet
+- **Worksheet:** Drafts
+
+Map the rows like this:
+
+| Row | Date | Video Title | Platform | Format | Content | Hashtags | Status |
+|-----|------|-------------|----------|--------|---------|----------|--------|
+| 1 | Now | Step 1 title | Instagram | Reel | Output 1 | (in Output 1) | DRAFT |
+| 2 | Now | Step 1 title | Instagram | Carousel | Output 2 | (in Output 2) | DRAFT |
+| 3 | Now | Step 1 title | X | Tweet | Output 3 | — | DRAFT |
+| 4 | Now | Step 1 title | X | Thread | Output 4 | — | DRAFT |
+| 5 | Now | Step 1 title | TikTok | Video | Output 5 | (in Output 5) | DRAFT |
+| 6 | Now | Step 1 title | YouTube | Short | Output 6 | — | DRAFT |
+| 7 | Now | Step 1 title | YouTube | Long-form | Output 7 | (in Output 7) | DRAFT |
+
+---
+
+### 🟠 Step 7 of Zap — OpusClip: "Create Project"
+
+- **App:** OpusClip
+- **Event:** Create Clip Project (or equivalent — check current OpusClip action name in Zapier)
+- **Video URL:** select the **video download URL** from Fathom (Step 3)
+- **Clip length settings:** enable both `< 60 seconds` and `< 90 seconds`
+- **Title:** select Video Title from Step 1
+
+> ⚠️ **Test this step first in isolation** — paste the Fathom video URL into
+> OpusClip manually to confirm it accepts it before relying on the Zap.
+> If Fathom's URL requires login, download the video to Drive and pass the
+> Drive URL instead.
+
+---
+
+### ⚪ Step 8 of Zap — Google Sheets: "Update Spreadsheet Row"
+
+- Update the original row in the **Videos** tab
+- **Status** column → set to `PROCESSING`
+- This prevents the filter in Step 2 from re-triggering the same row
+
+---
+
+### 🔔 Step 9 of Zap — Slack or Gmail: notify your team
+
+- **Message:** `🎬 Content drafts ready for *[Video Title]*. Open the Drafts tab to review → [paste your sheet URL here]`
+
+---
+
+## Build Zap 2 — Log finished clips (3 steps)
+
+OpusClip takes a few minutes to render. This second Zap logs clips when done.
+
+**Step 1 — Trigger: OpusClip "New Clip Ready" (or "Project Completed")**
+
+**Step 2 — Google Sheets: "Create Spreadsheet Row"**
+- Worksheet: Drafts
+- Map: clip link, duration, virality score, Status = `CLIP READY`
+
+**Step 3 — Slack/Email**
+- `✂️ [n] clips ready for [video title] → [OpusClip link]`
+
+---
+
+## How your team uses the Drafts tab
+
+1. A new Fathom recording finishes → you paste the link into the **Videos** tab
+2. Within ~5 minutes, the **Drafts** tab fills with 7 rows of copy (one per format)
+3. Within ~15 minutes (webinars longer), clips appear as `CLIP READY` rows
+4. Your team reads each row, changes **Status** from `DRAFT` → `APPROVED` or `SKIP`
+5. Pair each approved caption with the matching OpusClip clip and post (or push to Buffer/Later)
 
 ---
 
 ## Quick-start checklist
 
-- [ ] Set up your tracking sheet (columns above) or decide to use Fathom trigger directly
-- [ ] Get an Anthropic API key — console.anthropic.com
-- [ ] Connect Fathom to Zapier (Settings → Integrations in Fathom)
+- [ ] Create the two-tab Google Sheet (Videos + Drafts) with the columns above
+- [ ] Get Anthropic API key → connect to Zapier
+- [ ] Connect Fathom to Zapier (Settings → Integrations → Zapier in Fathom)
 - [ ] Connect OpusClip to Zapier
-- [ ] Build Zap 1 (6–7 steps)
-- [ ] Build Zap 2 (clip logger, 3 steps)
-- [ ] Test with one short Fathom recording
-- [ ] Check that Fathom's video URL works directly in OpusClip (see note in Step 6)
-- [ ] Turn on both Zaps
-
-**End-to-end time from recording to draft sheet: ~5 minutes for short videos,
-~15 minutes for long webinars (OpusClip render time is the variable).**
+- [ ] Build Zap 1 (9 steps) — test each step before turning on
+- [ ] Build Zap 2 (3 steps)
+- [ ] Do a full end-to-end test with one short Fathom recording
+- [ ] Turn both Zaps on 🚀
