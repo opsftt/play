@@ -31,7 +31,7 @@ Fathom (New Transcript) ─▶ [filter: sales calls only] ─▶ Claude (review)
 |---------|--------------|-----------------|
 | Zapier (Professional plan) | Runs the automation; multi-step Zaps need a paid plan | zapier.com |
 | Anthropic | Claude writes the review | console.anthropic.com → API Keys |
-| Fathom | Records the call + provides the transcript (the trigger) | Already have this ✅ |
+| Fathom (**Team plan**) | Records the call + provides the transcript (the trigger) | Already have this ✅ |
 | Slack | Where the review is posted for the manager | Already have this ✅ |
 | Close *(optional)* | Pull lead/closer context to enrich the review | Already have this ✅ |
 
@@ -60,10 +60,36 @@ ways to get a thread, and they change how you build the Zap:
 
 ---
 
+## Covering the whole team
+
+You do **not** connect each rep's Fathom account. Fathom's Zapier trigger can fire
+on *"any meetings from team members visible to you,"* so **one** connection from
+an account that can see everyone's calls covers the entire team. Requirements:
+
+- **Fathom Team plan.** Team-wide visibility (and some trigger/webhook events) are
+  Team-plan features.
+- **Connect an admin/owner account** to Zapier — one that can see all reps' sales
+  calls.
+- **Reps' calls must be visible to that account.** In Fathom's **org settings**,
+  make sure recording visibility is set so reps' sales calls are shared with the
+  team/admin (not kept private). The trigger only fires for calls the connected
+  account can actually see — if a rep's calls are private, they won't flow through.
+- On the trigger (Step 1 below), choose the **team members' meetings** scope, not
+  "only my meetings."
+
+> Edge cases: a brand-new rep, or one who keeps calls private, won't be covered
+> until their visibility is fixed in Fathom. There's nothing to change in Zapier
+> per rep — it's all controlled by Fathom visibility + the trigger scope.
+
+---
+
 ## Step 1 — Connect the apps to Zapier
 
-1. **Fathom** — in Fathom: **Settings → Integrations → Zapier**, click Connect,
-   copy the key, and paste it when Zapier asks.
+1. **Fathom** — connect with an **admin/owner** account that can see the whole
+   team's calls (not a single rep's personal account). In Fathom: **Settings →
+   Integrations → Zapier**, click Connect, copy the key, and paste it when Zapier
+   asks. See [Covering the whole team](#covering-the-whole-team) below — this one
+   connection covers every rep, you do **not** connect each person's Fathom.
 2. **Anthropic** — add an Anthropic step; paste your API key from
    console.anthropic.com → API Keys.
 3. **Slack** — connect the workspace; allow Zapier to post messages. Decide which
@@ -80,9 +106,14 @@ In Zapier click **Create Zap**.
 ### 🔵 Step 1 — Trigger: Fathom "New Transcript"
 
 - **App:** Fathom
+- **Account:** the **admin/owner** Fathom account (from Step 1) — so the trigger
+  can see every rep's calls.
 - **Event:** **New Transcript** (fires when a call's transcript is ready).
   *("New Meeting Recording" also works, but "New Transcript" guarantees the
   transcript text is present.)*
+- **Scope:** when Zapier asks whether to trigger on *only your meetings* or
+  *meetings from team members visible to you*, choose **team members' meetings**.
+  This is what makes the Zap cover the whole team from one connection.
 - **Test:** load a recent call so you have a real transcript to map.
 - **What you get:** `Transcript` / `Transcript Plaintext`, meeting **Title**,
   **Date**, **Share URL**, and **attendees** (often with emails).
