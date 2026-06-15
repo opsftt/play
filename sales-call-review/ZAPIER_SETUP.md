@@ -1,18 +1,27 @@
 # Freedom Team Trading — Post-Call Review Bot (Zapier)
 
-**What it does:** When a Fathom recording link lands on a Close lead, the Zap
-pulls the call transcript from Fathom, sends it to Claude for a sales-coaching
-review (summary, the lead's objections, how the closer handled them, what they
-could have done better, and the next steps presented to the client), and posts
-the review **as a threaded reply under the call's message in Slack** so the
-sales manager can review it.
+**What it does:** When Fathom finishes processing a sales call, the Zap takes the
+transcript, sends it to Claude for a sales-coaching review (summary, the lead's
+objections, how the closer handled them, what they could have done better, and
+the next steps presented to the client), and posts the review **as a threaded
+reply under the call's message in Slack** so the sales manager can review it.
 
 ```
-Close (Fathom link added) ─▶ Fathom (transcript) ─▶ Claude (review)
-        │                                                  │
-        └────────────▶ Slack: parent "call recorded" message
-                                  └─▶ Slack: threaded reply with Claude's review
+Fathom (New Transcript) ─▶ [filter: sales calls only] ─▶ Claude (review)
+        │                                                      │
+        └──────────────▶ Slack: parent "call recorded" message
+                                   └─▶ Slack: threaded reply with Claude's review
 ```
+
+> **Why Fathom is the trigger (and not Close):** Fathom's Zapier app only offers
+> *triggers* — there is **no "Find Recording" action**, so a Zap that starts in
+> Close has no way to pull the transcript back out of Fathom. Triggering on
+> Fathom's "New Transcript" event hands you the transcript directly in the
+> trigger output, which is simpler and more reliable. If you specifically need
+> Close to be the starting point (e.g. reps hand-pick which calls get reviewed by
+> adding the Fathom link to a lead), see
+> [Appendix B](#appendix-b--keep-close-as-the-trigger-fathom-api) — it uses the
+> Fathom API instead.
 
 ---
 
@@ -20,18 +29,17 @@ Close (Fathom link added) ─▶ Fathom (transcript) ─▶ Claude (review)
 
 | Account | What it's for | Where to get it |
 |---------|--------------|-----------------|
-| Zapier (Professional plan) | Runs the automation. Multi-step + paths need a paid plan | zapier.com |
+| Zapier (Professional plan) | Runs the automation; multi-step Zaps need a paid plan | zapier.com |
 | Anthropic | Claude writes the review | console.anthropic.com → API Keys |
-| Close | The CRM the Fathom link is added to | Already have this ✅ |
-| Fathom | Records the call + holds the transcript | Already have this ✅ |
+| Fathom | Records the call + provides the transcript (the trigger) | Already have this ✅ |
 | Slack | Where the review is posted for the manager | Already have this ✅ |
+| Close *(optional)* | Pull lead/closer context to enrich the review | Already have this ✅ |
 
 > **Which model:** use **`claude-opus-4-8`** in the Anthropic step. Sales-coaching
 > review is judgment-heavy (reading objections, evaluating how they were handled),
-> and Opus is the strongest model for that. If you run a high volume of calls and
-> want to cut cost, **`claude-sonnet-4-6`** is the cheaper fallback — switch the
-> model in the dropdown, nothing else changes. Don't append a date to the model
-> name; use the ID exactly as written.
+> and Opus is the strongest model for it. For high call volume on a tighter
+> budget, **`claude-sonnet-4-6`** is a drop-in cheaper option — just change the
+> model in the dropdown. Use the model ID exactly as written; don't add a date.
 
 ---
 
@@ -42,104 +50,92 @@ ways to get a thread, and they change how you build the Zap:
 
 - **Option A — the Zap owns the thread (recommended).** The Zap posts a short
   parent message ("📞 New call recorded: …"), captures that message's timestamp,
-  then posts Claude's review as a *threaded reply* under it. This is reliable —
-  the Zap always knows exactly which message to thread under. The steps below use
-  Option A.
+  then posts Claude's review as a *threaded reply* under it. Reliable — the Zap
+  always knows which message to thread under. The steps below use Option A.
 
-- **Option B — reply under Fathom's existing Slack post.** If you already have
-  Fathom's native Slack integration auto-posting recordings to a channel, you can
-  instead find that message and reply in its thread. This is less reliable because
-  the Zap has to *search* for the right message by call title/lead name. See
-  [Appendix: Option B](#appendix-option-b--thread-under-fathoms-existing-post) at
-  the end if you want this.
+- **Option B — reply under Fathom's existing Slack post.** If Fathom's native
+  Slack integration already auto-posts recordings to a channel, you can reply in
+  *that* message's thread instead. Less reliable (the Zap has to *search* for the
+  right message). See [Appendix A](#appendix-a--thread-under-fathoms-existing-post).
 
 ---
 
 ## Step 1 — Connect the apps to Zapier
 
-1. **Anthropic** — in Zapier add an Anthropic step; paste your API key from
-   console.anthropic.com → API Keys.
-2. **Close** — Settings → Developer/API in Close to get your API key, then
-   connect it when Zapier asks.
-3. **Fathom** — in Fathom, **Settings → Integrations → Zapier**, click Connect,
+1. **Fathom** — in Fathom: **Settings → Integrations → Zapier**, click Connect,
    copy the key, and paste it when Zapier asks.
-4. **Slack** — connect the Slack workspace; allow Zapier to post messages.
-   Decide which channel the manager reviews in (e.g. `#sales-call-reviews`).
+2. **Anthropic** — add an Anthropic step; paste your API key from
+   console.anthropic.com → API Keys.
+3. **Slack** — connect the workspace; allow Zapier to post messages. Decide which
+   channel the manager reviews in (e.g. `#sales-call-reviews`).
+4. **Close** *(optional)* — connect with your Close API key (Settings →
+   Developer/API) only if you want to enrich the review with lead/closer info.
 
 ---
 
-## Step 2 — Make sure the Fathom link reliably lands on Close
-
-The Zap triggers off Close, so the Fathom link has to arrive there in a
-**consistent, detectable** spot. Pick one and use it every time:
-
-- **Best:** add a custom field on the Close lead/opportunity called
-  **`Fathom Recording URL`** and have reps (or Fathom's Close integration) put
-  the link there. A dedicated field is the cleanest thing to trigger on.
-- **Also fine:** reps paste the Fathom link into a **Note** on the lead.
-
-The guide below assumes the **custom field** approach. (If you use Notes instead,
-swap the trigger event in Step 3 to "Note Created" and read the link from the
-note body.)
-
----
-
-## Step 3 — Build the Zap
+## Step 2 — Build the Zap
 
 In Zapier click **Create Zap**.
 
-### 🔵 Step 1 — Trigger: Close "Lead Updated"
-
-- **App:** Close
-- **Event:** **Lead Updated** (fires when the lead changes, e.g. when the Fathom
-  field gets filled in)
-- **Test:** pick a lead that already has a Fathom URL in the custom field so you
-  have real data to map.
-
-> If you went with Notes instead of a custom field, use event **Note Created**.
-
-### 🟡 Step 2 — Filter: only continue when there's a Fathom link
-
-- **App:** Filter by Zapier
-- **Condition:** `Fathom Recording URL` (the custom field from Step 1)
-  **(Text) Contains** `fathom.video`
-- This stops the Zap from running on every unrelated lead edit — it only proceeds
-  when an actual Fathom link is present.
-
-> **Avoid re-processing the same call.** "Lead Updated" can fire many times. Add a
-> second condition or a second checkbox field (e.g. `Review Sent` = empty) and set
-> that field to checked in the last step (Step 8) so a given call is only reviewed
-> once.
-
-### 🟠 Step 3 — Fathom: "Find Recording"
+### 🔵 Step 1 — Trigger: Fathom "New Transcript"
 
 - **App:** Fathom
-- **Event:** Find Recording
-- **Recording URL:** map the `Fathom Recording URL` field from Step 1
-- **What you get back:** the full **transcript**, the call **title**, the
-  **date**, **attendees/participants**, and the recording link. You'll use the
-  transcript in Step 5 and the title/lead name in Step 4.
+- **Event:** **New Transcript** (fires when a call's transcript is ready).
+  *("New Meeting Recording" also works, but "New Transcript" guarantees the
+  transcript text is present.)*
+- **Test:** load a recent call so you have a real transcript to map.
+- **What you get:** `Transcript` / `Transcript Plaintext`, meeting **Title**,
+  **Date**, **Share URL**, and **attendees** (often with emails).
+
+### 🟡 Step 2 — Filter: only review actual sales calls
+
+Because this now fires on *every* Fathom recording, filter down to sales calls so
+internal/team meetings don't get reviewed.
+
+- **App:** Filter by Zapier
+- **Use whichever signal fits your setup:**
+  - Meeting **Title** *contains* a keyword you use (e.g. `Discovery`, `Sales`,
+    `Strategy Call`), **or**
+  - An **attendee email domain** is *not* `freedomteamtrading.com` (i.e. an
+    external prospect is on the call), **or**
+  - The call came from a specific Fathom **team/folder** if you route sales calls
+    there.
+
+> If reps already curate calls some other way, adapt the condition to match. The
+> goal is simply: continue only for calls worth coaching.
+
+### 🟠 Step 3 *(optional)* — Close: "Find Lead" for context
+
+Skip this if you don't need CRM context in the review.
+
+- **App:** Close
+- **Event:** **Find Lead**
+- **Search by:** the prospect's email or name from the Fathom attendees (Step 1)
+- **What it gives you:** the lead name and **Lead Owner** (the closer), to label
+  the Slack message and the review.
+
+> Matching can miss if the prospect's email isn't on the Fathom invite or isn't in
+> Close. If it's unreliable for you, drop this step — the review still works from
+> the transcript alone.
 
 ### 🟣 Step 4 — Slack: post the parent "call recorded" message
 
-This is the message the review will be threaded under.
+This is the message the review threads under.
 
 - **App:** Slack
 - **Event:** **Send Channel Message**
-- **Channel:** `#sales-call-reviews` (or wherever the manager reviews)
+- **Channel:** `#sales-call-reviews`
 - **Message text:**
   ```
   📞 New sales call recorded — review below in thread
-  *Lead:* {{Close Lead Name}}
-  *Closer:* {{Close Lead Owner / Rep}}
+  *Lead:* {{Close Lead Name — or Fathom attendee}}
+  *Closer:* {{Close Lead Owner — or Fathom host}}
   *Call:* {{Fathom Title}} ({{Fathom Date}})
-  *Recording:* {{Fathom Recording URL}}
+  *Recording:* {{Fathom Share URL}}
   ```
-- **Important:** after adding this step, in the step's options find and turn ON
-  the field that exposes the message timestamp (Slack returns a **`ts`** /
-  **Message Timestamp** value). You need it in Step 7 to reply in-thread. (In
-  Zapier's Slack action this surfaces automatically in the step's output once you
-  test it — look for `ts` or "Message Ts".)
+- **Important:** Slack's action returns a **`ts`** (Message Timestamp) in its
+  output after you test it. You need that in Step 6 to reply in-thread — note
+  where it appears.
 
 ### 🟤 Step 5 — Anthropic: "Send Message" (Claude writes the review)
 
@@ -147,8 +143,8 @@ This is the message the review will be threaded under.
 - **Event:** Send Message
 - **Model:** `claude-opus-4-8`  *(or `claude-sonnet-4-6` for lower cost)*
 - **Max tokens:** `2000`
-- **System / Instructions** (if the step has a separate system field, put this
-  there; otherwise paste it at the top of the message):
+- **System / Instructions** (use the system field if present, else put it at the
+  top of the message):
   ```
   You are a sales coach reviewing a recorded sales call for Freedom Team Trading,
   a forex and futures trading education brand. Your audience is the SALES MANAGER,
@@ -157,16 +153,16 @@ This is the message the review will be threaded under.
   transcript is missing or too short to assess, say so plainly instead of guessing.
   Never coach the rep to make guaranteed-profit or income claims.
   ```
-- **Message (user):** paste the prompt below, then use Zapier's field picker to
-  insert the dynamic values where marked:
+- **Message (user):** paste this, then use the field picker to insert the dynamic
+  values where marked:
   ```
-  CALL TITLE: [insert Fathom Title from Step 3]
-  DATE: [insert Fathom Date from Step 3]
-  LEAD: [insert Close Lead Name from Step 1]
-  CLOSER / REP: [insert Close Lead Owner from Step 1]
+  CALL TITLE: [insert Fathom Title from Step 1]
+  DATE: [insert Fathom Date from Step 1]
+  LEAD: [insert Close Lead Name from Step 3, or Fathom attendee from Step 1]
+  CLOSER / REP: [insert Close Lead Owner from Step 3, or Fathom host from Step 1]
 
   TRANSCRIPT:
-  [insert Transcript from Step 3 - Fathom]
+  [insert Transcript / Transcript Plaintext from Step 1 - Fathom]
 
   Write a post-call review for the sales manager. Format it as Slack mrkdwn
   (use *bold* for headers, "- " for bullets, no markdown # headings, no tables).
@@ -195,91 +191,101 @@ This is the message the review will be threaded under.
   say that explicitly — that itself is a coaching point.
   ```
 
-### 🔵 Step 6 — (optional) Formatter: tidy the output
-
-Usually not needed. If Claude ever wraps the reply in stray characters, add a
-**Formatter by Zapier → Text → Replace** step to clean it. Skip otherwise.
-
-### 🟢 Step 7 — Slack: post the review **in the thread**
+### 🟢 Step 6 — Slack: post the review **in the thread**
 
 - **App:** Slack
 - **Event:** **Send Channel Message**
 - **Channel:** same channel as Step 4
 - **Message text:** map the **Claude response** from Step 5
-- **Thread:** this is the key field — set **"Thread"** / **"Thread Timestamp
-  (ts)"** to the **`ts`** value from **Step 4** (the parent message). That makes
-  this post a reply *inside* the call's thread instead of a new top-level message.
-- **Send as a bot / Send as Zapier:** either is fine; pick what your team prefers.
+- **Thread:** set the **"Thread" / "Thread Timestamp (ts)"** field to the **`ts`**
+  from **Step 4** (the parent message). That makes this a reply *inside* the
+  call's thread instead of a new top-level message.
 - **(Optional) Notify the manager:** start the message with `<@MANAGER_SLACK_ID>`
-  or `<!subteam^SALES_MANAGERS_ID>` so the manager gets pinged on the thread.
+  or `<!subteam^SALES_MANAGERS_ID>` so the manager gets pinged.
 
-### ⚪ Step 8 — Close: mark the call as reviewed
+### ⚪ Step 7 *(optional)* — Close: log that it was reviewed
 
-- **App:** Close
-- **Event:** **Update Lead**
-- **Lead:** the lead from Step 1
-- Set your `Review Sent` checkbox (from Step 2's note) to **checked**, or write
-  the Slack thread link into a field. This prevents the Zap from re-reviewing the
-  same call on the next lead edit.
+If you used Close in Step 3, add a **Close → Update Lead** step to write the Slack
+thread link onto the lead, so the review is discoverable from the CRM.
 
 ---
 
-## Step 4 — Test end to end
+## Step 3 — Test end to end
 
-1. Pick a real, **short** completed call and put its Fathom link in the Close
-   custom field.
+1. Pick a recent **short** sales call in Fathom.
 2. In Zapier, test each step top to bottom. Confirm:
-   - Step 3 returns a real transcript (not empty).
+   - Step 1 returns a real transcript (not empty).
+   - Step 2 passes for a sales call (and would block an internal meeting).
    - Step 4 posts the parent message and exposes a `ts`.
    - Step 5 returns the five-section review.
-   - Step 7's reply lands **inside the thread** of Step 4's message (not as a
-     separate message).
+   - Step 6's reply lands **inside the thread** of Step 4's message.
 3. Turn the Zap **on**.
 
 ---
 
 ## How the sales manager uses it
 
-1. A closer finishes a call → the Fathom link gets added to the Close lead.
+1. A closer finishes a call → Fathom processes the transcript.
 2. Within a few minutes, `#sales-call-reviews` shows a `📞 New sales call`
-   message, with Claude's full coaching review threaded right under it.
-3. The manager opens the thread, reads the review, and can reply in the same
-   thread with feedback for the rep — keeping the call, the review, and the
-   coaching conversation in one place.
+   message with Claude's full coaching review threaded right under it.
+3. The manager opens the thread, reads the review, and replies in the same thread
+   with feedback for the rep — call, review, and coaching all in one place.
 
 ---
 
 ## Quick-start checklist
 
-- [ ] Connect Anthropic, Close, Fathom, and Slack to Zapier
-- [ ] Add a `Fathom Recording URL` custom field on Close leads (+ a `Review Sent` checkbox)
+- [ ] Connect Fathom, Anthropic, and Slack to Zapier (Close optional)
 - [ ] Decide the Slack review channel (e.g. `#sales-call-reviews`)
-- [ ] Build the 8-step Zap — test each step before turning it on
+- [ ] Build the Zap: Fathom trigger → filter → (Close find) → Slack parent →
+      Claude → Slack thread reply
 - [ ] Confirm the review posts **in-thread** under the parent message
 - [ ] Do one full end-to-end test with a short real call
 - [ ] Turn the Zap on 🚀
 
 ---
 
-## Appendix: Option B — thread under Fathom's existing post
+## Appendix A — thread under Fathom's existing post
 
 Use this only if Fathom's native Slack integration already auto-posts each
-recording to a channel and you want the review threaded under *that* message
-instead of one the Zap creates.
+recording to a channel and you want the review threaded under *that* message.
 
-Replace Step 4 and Step 7 above with:
+Replace Step 4 and Step 6 above with:
 
 1. **Slack: "Find Message"** — search the Fathom channel for the message matching
-   this call. Search by the **call title** or **lead name** (map from Step 1/3).
-   This returns the message's `ts`.
-2. **Filter** — only continue if a message was found (the search can miss if
-   Fathom hasn't posted yet; you may need a Delay step before this so Fathom posts
-   first).
-3. **Slack: "Send Channel Message"** — set **Thread (ts)** to the `ts` from the
-   Find Message step, and map Claude's review as the text.
+   this call (by **Title** or lead name from Step 1). Returns the message `ts`.
+2. **Filter** — only continue if a message was found. You may need a **Delay**
+   step before this so Fathom posts first.
+3. **Slack: "Send Channel Message"** — set **Thread (ts)** to the `ts` from Find
+   Message, and map Claude's review as the text.
 
 **Why it's less reliable:** the match depends on the title/name being unique and
-on Fathom having already posted. If two calls share a lead name, or Fathom is
-slow, the reply can land on the wrong message or fail to find one. Option A avoids
-both problems by creating and threading under its own message. Prefer Option A
-unless you specifically need everything under Fathom's post.
+on Fathom having already posted. Option A avoids both by creating and threading
+under its own message.
+
+---
+
+## Appendix B — keep Close as the trigger (Fathom API)
+
+Only do this if you specifically need reps to hand-pick calls by adding the Fathom
+link to a Close lead. Because Fathom has **no Zapier action** to fetch a
+transcript, you call the **Fathom API** directly with a Webhooks step
+(requires Zapier's "Webhooks by Zapier" Premium app + a Fathom API key).
+
+1. **Trigger:** Close **Lead Updated** (fire when a `Fathom Recording URL` custom
+   field is filled in).
+2. **Filter:** continue only when that field *contains* `fathom.video`.
+3. **Webhooks by Zapier → GET:** call the Fathom API for that recording's
+   transcript. Set the request URL to the Fathom API transcript endpoint and add
+   your Fathom API key as the `Authorization` header. (Get the API key and the
+   exact endpoint from Fathom → Settings → API, or their API docs — the endpoint
+   takes the recording ID/URL and returns the transcript JSON.)
+4. **Anthropic → Send Message:** same prompt as Step 5 above, mapping the
+   transcript from the Webhooks GET response.
+5. **Slack:** parent message + threaded reply, exactly as Steps 4 and 6 above.
+6. **Close → Update Lead:** mark a `Review Sent` checkbox so the same call isn't
+   reviewed twice on the next lead edit.
+
+This keeps your original "link on Close kicks it off" flow at the cost of one
+extra (Premium) Webhooks step and managing a Fathom API key. For most teams,
+triggering on Fathom directly (the main guide) is simpler.
